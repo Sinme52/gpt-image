@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """OpenAI GPT Image 2.5 (gpt-image-2.5-*) client for the gpt-image-2-5 skill.
 
-Two subcommands:
+Three subcommands:
   generate  Draft image from a prompt (default quality: medium).
+  edit      New image from a prompt plus one or more reference images (character
+            sheets, pose references, earlier frames, ...) via the edits endpoint
+            (default quality: medium).
   release   Take a draft image and re-render it at quality xhigh via the edits
             endpoint, keeping the composition of the draft.
 
@@ -35,6 +38,7 @@ QUALITIES = ("low", "medium", "high", "xhigh", "max", "auto")
 DRAFT_QUALITY = "medium"
 RELEASE_QUALITY = "xhigh"
 FORMATS = ("png", "jpeg", "webp")
+MAX_EDIT_IMAGES = 16  # images/edits accepts up to 16 input images
 REQUEST_TIMEOUT = 600  # xhigh renders can take minutes
 
 RELEASE_INSTRUCTION = (
@@ -280,6 +284,69 @@ def cmd_generate(args):
     report(saved, meta)
 
 
+def cmd_edit(args):
+    api_key = load_api_key()
+    paths = [Path(p) for p in args.image]
+    if len(paths) > MAX_EDIT_IMAGES:
+        raise SkillError(f"Too many input images: {len(paths)} (at most {MAX_EDIT_IMAGES}).")
+    files = []
+    for i, src in enumerate(paths):
+        if not src.is_file():
+            raise SkillError(f"Image not found: {src}")
+        mime = mime_for(src)
+        if mime == "application/octet-stream":
+            raise SkillError(f"Unsupported image type (use PNG, JPEG or WebP): {src}")
+        files.append(("image[]", f"image{i + 1}{src.suffix.lower()}", src.read_bytes(), mime))
+
+    size = args.size
+    if not size:
+        dims = image_size(paths[0])
+        size = f"{dims[0]}x{dims[1]}" if dims and valid_api_size(*dims) else "auto"
+
+    extra = {}
+    if args.meta_json:
+        try:
+            extra = json.loads(Path(args.meta_json).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            raise SkillError(f"Could not read --meta-json {args.meta_json}: {e}") from None
+        if not isinstance(extra, dict):
+            raise SkillError("--meta-json must hold a JSON object")
+
+    fields = [
+        ("model", args.model),
+        ("prompt", args.prompt),
+        ("quality", args.quality),
+        ("size", size),
+        ("output_format", args.format),
+        ("n", str(args.n)),
+    ]
+    if args.background:
+        fields.append(("background", args.background))
+    body, ctype = _multipart(fields, files)
+    payload, request_id, elapsed = _post(f"{base_url()}/images/edits", body, ctype, api_key)
+    meta = {
+        "kind": "edit",
+        "prompt": args.prompt,
+        "input_images": [str(p) for p in paths],
+        "model": args.model,
+        "quality": args.quality,
+        "size": size,
+        "output_format": args.format,
+        "background": args.background,
+        "created_at": _dt.datetime.now().isoformat(timespec="seconds"),
+        "request_id": request_id,
+        "elapsed_sec": round(elapsed, 1),
+        "usage": payload.get("usage"),
+    }
+    if args.release_prompt:
+        meta["release_prompt"] = args.release_prompt
+    for k, v in extra.items():  # caller's own notes; never overwrite the fields above
+        meta.setdefault(k, v)
+    stem = args.name or f"edit-{timestamp()}"
+    saved = save_results(payload, Path(args.out_dir), stem, args.format, meta)
+    report(saved, meta)
+
+
 def cmd_release(args):
     api_key = load_api_key()
     src = Path(args.image)
@@ -287,7 +354,9 @@ def cmd_release(args):
         raise SkillError(f"Image not found: {src}")
     draft = read_sidecar(src)
 
-    prompt = args.prompt or draft.get("prompt")
+    # edit results may store a plain description of the picture for this step,
+    # because their own prompt talks about the input images
+    prompt = args.prompt or draft.get("release_prompt") or draft.get("prompt")
     if not prompt:
         raise SkillError(
             "No prompt for this image: no sidecar JSON was found next to it. "
@@ -385,6 +454,23 @@ def build_parser():
     g.add_argument("--name", help="output file stem (no extension)")
     g.add_argument("--out-dir", default=str(default_out_dir()))
     g.set_defaults(func=cmd_generate)
+
+    e = sub.add_parser("edit", help="create an image from a prompt and reference images (default: medium)")
+    e.add_argument("--image", action="append", required=True,
+                   help="input image (PNG/JPEG/WebP); repeat for several, in the order the prompt refers to them")
+    e.add_argument("--prompt", required=True, help="what to draw; refer to the inputs as IMAGE 1, IMAGE 2, ...")
+    e.add_argument("--quality", default=DRAFT_QUALITY, choices=QUALITIES)
+    e.add_argument("--model", default=DEFAULT_MODEL, choices=MODELS)
+    e.add_argument("--size", help="defaults to the first image's size if the API accepts it, else auto")
+    e.add_argument("--format", default="png", choices=FORMATS)
+    e.add_argument("--background", choices=("transparent", "opaque", "auto"))
+    e.add_argument("--n", type=int, default=1)
+    e.add_argument("--name", help="output file stem (no extension); several images get _1, _2, ...")
+    e.add_argument("--out-dir", default=str(default_out_dir()))
+    e.add_argument("--release-prompt",
+                   help="plain description of the result, stored for a later 'release' (the edit prompt refers to the inputs)")
+    e.add_argument("--meta-json", help="JSON file with extra fields to store in the sidecar (for tools that call this script)")
+    e.set_defaults(func=cmd_edit)
 
     r = sub.add_parser("release", help="re-render a draft image at xhigh")
     r.add_argument("--image", required=True, help="path to the draft image")

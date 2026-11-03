@@ -1,6 +1,6 @@
 ---
 name: gpt-image-2-5
-description: OpenAI の GPT Image 2.5 (gpt-image-2.5-sunburst / flare) を API で呼び出して画像を生成・仕上げするスキル。「画像を作って」「イラストを生成して」「バナー／サムネ／アイキャッチを作って」「GPT Image で」「OpenAI で画像生成」など、画像の新規生成を頼まれたら必ずこのスキルを使うこと。通常は品質 medium で下書きを作り、「リリース用」「本番用」「最終版」「高品質で仕上げて」「xhigh で」と言われたら、受け取った medium 画像（または直前に作った画像）を xhigh 品質で再出力する。Use this skill for any image generation request, and for upgrading a draft image to release quality.
+description: OpenAI の GPT Image 2.5 (gpt-image-2.5-sunburst / flare) を API で呼び出して画像を生成・編集・仕上げするスキル。「画像を作って」「イラストを生成して」「バナー／サムネ／アイキャッチを作って」「GPT Image で」「OpenAI で画像生成」など、画像の新規生成を頼まれたら必ずこのスキルを使うこと。「このキャラで」「この画像をもとに」「参照画像を使って」など、手元の画像（キャラ設定画、ポーズ参照、前のコマなど）を入力にした生成もこのスキルの edit で行う。通常は品質 medium で下書きを作り、「リリース用」「本番用」「最終版」「高品質で仕上げて」「xhigh で」と言われたら、受け取った medium 画像（または直前に作った画像）を xhigh 品質で再出力する。Use this skill for any image generation request, and for upgrading a draft image to release quality.
 ---
 
 # GPT Image 2.5 画像生成
@@ -35,28 +35,50 @@ python3 $SKILL/scripts/gpt_image.py generate \
 - モデルは既定で `gpt-image-2.5-sunburst`（高品質・編集精度重視）。「速く」「たくさん試したい」と言われたら `--model gpt-image-2.5-flare`。
 - 出力先は claude.ai では `/mnt/user-data/outputs`、それ以外ではカレントの `gpt-image-outputs/`。`--out-dir` で変更できる。
 - 画像と同じ名前の `.json`（サイドカー）にプロンプト・モデル・サイズなどが保存される。リリース時にこれを使うので、画像と一緒に保管するよう伝える。
+- 手元の画像を入力にしたい（キャラを保ったまま別の絵を作るなど）ときは、generate ではなく下の edit を使う。
 
 ### プロンプトの書き方
 
 ユーザーの依頼が短くても、そのまま投げずに具体化する。被写体、構図、画風（写真／イラスト／3D など）、光と色、雰囲気、画像内に入れる文字（あれば正確な文言を引用符で）を盛り込む。画像内の文字は日本語より英語のほうが崩れにくいので、日本語の文字入れを頼まれた場合は崩れる可能性があることを一言添える。
 
-## 2. リリース用に xhigh で仕上げる
+## 2. 参照画像を使って作る（edit）
 
-ユーザーが medium 画像をアップロードした、または直前に作った下書きを「リリース用にして」と言われたら:
+キャラクターの設定画、ポーズの参照画像、先に作ったコマなど、手元の画像を入力にして新しい画像を作るときに使う。
+
+```bash
+python3 $SKILL/scripts/gpt_image.py edit \
+  --image <画像1> --image <画像2> [--image <画像3> ...] \
+  --prompt "<各画像の役割と、作りたい画像の説明>" \
+  [--n 2] [--background transparent] [--size 1024x1024] \
+  [--release-prompt "<出来上がる画像そのものの説明>"]
+```
+
+- `--image` は最大16枚。PNG／JPEG／WebP を指定した順に送る。
+- プロンプトでは、入力画像を IMAGE 1、IMAGE 2 … と順番で呼び、それぞれの役割をはっきり書く。
+  - 例：「IMAGE 1 is the character to draw. IMAGE 2 is only a pose reference.」
+  - 役割を書かないと、参照画像の色や形が混ざりやすい。
+- 品質は指定しなければ `medium`（下書き）。サイズは指定しなければ、1枚目の画像のサイズ（API が受け付けない大きさなら `auto`）。
+- `--release-prompt` に、出来上がる画像そのものの説明（入力画像に触れない文）を入れておく。あとで `release` するとき、この文が使われる。edit のプロンプトは「IMAGE 1 を…」のように入力画像を前提にしているので、そのままでは仕上げに使えないため。
+- ほかのツールから呼ぶ場合は、`--meta-json <JSON ファイル>` で、サイドカー JSON に情報を書き足せる（既存の項目は上書きしない）。
+- 出力・サイドカー・エラーの扱いは generate と同じ。
+
+## 3. リリース用に xhigh で仕上げる
+
+ユーザーが medium 画像をアップロードした、または直前に作った下書き（generate でも edit でも）を「リリース用にして」と言われたら:
 
 ```bash
 python3 $SKILL/scripts/gpt_image.py release --image <medium画像のパス>
 ```
 
 - 既定の `--mode edit` は、medium 画像そのものを edits API に入力し、構図・被写体・色・文字を保ったまま `xhigh` で描き直す。ユーザーが気に入った下書きを「そのまま綺麗にしたい」ケースに合っているので、基本はこれを使う。
-- サイズは元画像から自動で引き継ぐ。プロンプトはサイドカー JSON から自動で読む。
+- サイズは元画像から自動で引き継ぐ。プロンプトはサイドカー JSON から自動で読む（edit の結果なら、`--release-prompt` で残した説明文を優先する）。
 - **サイドカーが無い場合**（ユーザーがチャットに画像だけアップロードした場合など）は `--prompt` が必須。画像を自分で見て内容を詳しく記述したプロンプトを作って渡す。claude.ai でアップロードされたファイルは通常 `/mnt/user-data/uploads/` にある。
 - 「同じプロンプトで作り直して」と言われたときだけ `--mode regenerate`（元画像を使わずプロンプトから xhigh で再生成。構図は変わる）。
 - 「max で」と明示されたら `--quality max`。
 
 xhigh は 1 枚あたり数十秒〜数分かかることがある。実行前に「xhigh で仕上げ中です（少し時間がかかります）」と一言伝えるとよい。
 
-## 3. 結果の返し方
+## 4. 結果の返し方
 
 スクリプトは成功時に JSON（`files`, `model`, `quality`, `size`, `elapsed_sec`, `usage`）を標準出力に出す。生成した画像ファイルをユーザーに提示し、使ったモデル・品質・サイズを短く伝える。下書きの場合は「気に入ったら『リリース用に』と言ってください」と次の一手を添える。
 
