@@ -3,6 +3,7 @@
 Claude から OpenAI の GPT Image 2.5 (`gpt-image-2.5-sunburst` / `gpt-image-2.5-flare`) を呼び出して画像を作る Claude スキルです。
 
 - 通常は品質 `medium` で下書きを作成
+- キャラ設定画やポーズ参照など、手元の画像を入力にした生成（`edit`、最大16枚）
 - 「リリース用に」と頼むと、medium の画像を入力にして構図を保ったまま `xhigh` で再出力
 - Python 標準ライブラリのみで動作（追加インストール不要）
 
@@ -11,7 +12,7 @@ Claude から OpenAI の GPT Image 2.5 (`gpt-image-2.5-sunburst` / `gpt-image-2.
 ```
 gpt-image-2-5/
 ├── SKILL.md            # Claude 向けの手順
-├── scripts/gpt_image.py
+├── scripts/gpt_image.py  # generate / edit / release
 └── .env.example
 ```
 
@@ -63,11 +64,23 @@ Claude に頼むだけで使えます。
 # 下書き (medium)
 python3 gpt-image-2-5/scripts/gpt_image.py generate --prompt "..." --size 1536x1024
 
-# リリース (xhigh)。プロンプトとサイズは下書きのサイドカー JSON から引き継ぐ
+# 参照画像を使って作る (medium)。入力画像はプロンプトの中で IMAGE 1, IMAGE 2 ... と呼ぶ
+python3 gpt-image-2-5/scripts/gpt_image.py edit --image character.png --image pose.png \
+  --prompt "Draw the character from IMAGE 1 in the pose of IMAGE 2 ..." --n 2 --release-prompt "a knight walking to the left"
+
+# リリース (xhigh)。プロンプトとサイズは下書きのサイドカー JSON から引き継ぐ（edit の結果なら --release-prompt の文）
 python3 gpt-image-2-5/scripts/gpt_image.py release --image gpt-image-outputs/draft-xxxx.png
 ```
 
 主なオプション: `--model gpt-image-2.5-flare`（高速版）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
+
+## テスト
+
+API を模した手元のサーバーに対して、CLI の送信内容と保存結果を確認します（ネットワーク・課金なし）。
+
+```bash
+python3 -m unittest discover -s tests
+```
 
 ## 注意
 
