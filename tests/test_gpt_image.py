@@ -16,7 +16,7 @@ import zlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "gpt-image-2-5" / "scripts" / "gpt_image.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "gpt-image" / "scripts" / "gpt_image.py"
 
 
 def png_bytes(w, h):
@@ -160,6 +160,61 @@ class GptImageCli(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[0]["path"], "/v1/images/generations")
         self.assertEqual(Mock.requests[0]["json"]["quality"], "medium")
+
+    def test_default_model_and_complexity_left_to_the_api(self):
+        code, _, err = self.run_cli("generate", "--prompt", "a cat", "--out-dir", str(self.dir), "--name", "cat")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["json"]["model"], "gpt-image-2.6-sunburst")
+        self.assertNotIn("complexity", Mock.requests[0]["json"])
+        a = self.dir / "c.png"
+        a.write_bytes(png_bytes(1024, 1024))
+        code, _, err = self.run_cli("edit", "--image", str(a), "--prompt", "x", "--out-dir", str(self.dir), "--name", "e")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[1]["fields"]["model"], "gpt-image-2.6-sunburst")
+        self.assertNotIn("complexity", Mock.requests[1]["fields"])
+
+    def test_model_accepts_any_id_and_complexity_is_sent(self):
+        code, _, err = self.run_cli("generate", "--prompt", "a cat", "--model", "gpt-image-2.6-flare", "--complexity", "medium",
+                                    "--out-dir", str(self.dir), "--name", "cat")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["json"]["model"], "gpt-image-2.6-flare")
+        self.assertEqual(Mock.requests[0]["json"]["complexity"], "medium")
+        self.assertEqual(json.loads((self.dir / "cat.json").read_text())["complexity"], "medium")
+
+    def make_draft(self, model=None):
+        draft = self.dir / "draft-x.png"
+        draft.write_bytes(png_bytes(1024, 1024))
+        side = {"prompt": "a cat", "output_format": "png"}
+        if model:
+            side["model"] = model
+        (self.dir / "draft-x.json").write_text(json.dumps(side))
+        return draft
+
+    def test_release_plans_low_complexity_on_the_default_model(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft()))
+        self.assertEqual(code, 0, err)
+        fields = Mock.requests[0]["fields"]
+        self.assertEqual(fields["model"], "gpt-image-2.6-sunburst")
+        self.assertEqual(fields["complexity"], "low")
+        self.assertEqual(json.loads((self.dir / "release-x.json").read_text())["complexity"], "low")
+
+    def test_release_complexity_can_be_overridden(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft()), "--complexity", "high")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["fields"]["complexity"], "high")
+
+    def test_release_of_an_old_draft_keeps_its_model_without_complexity(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft("gpt-image-2.5-sunburst")))
+        self.assertEqual(code, 0, err)
+        fields = Mock.requests[0]["fields"]
+        self.assertEqual(fields["model"], "gpt-image-2.5-sunburst")
+        self.assertNotIn("complexity", fields)
+
+    def test_release_regenerate_leaves_complexity_to_the_api(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft()), "--mode", "regenerate")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["path"], "/v1/images/generations")
+        self.assertNotIn("complexity", Mock.requests[0]["json"])
 
 
 if __name__ == "__main__":
