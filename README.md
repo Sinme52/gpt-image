@@ -72,9 +72,11 @@ python3 gpt-image/scripts/gpt_image.py edit --image character.png --image pose.p
 python3 gpt-image/scripts/gpt_image.py release --image gpt-image-outputs/draft-xxxx.png
 ```
 
-主なオプション: `--model gpt-image-2.6-flare`（高速版）、`--complexity low|medium|high`（描く前の計画の量）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
+主なオプション: `--model gpt-image-2.6-flare`（高速版）、`--complexity low|medium|high`（描く前の計画の量。既定は `low`）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
 
-`release` の既定の動作では、構図を変えないよう `complexity` を `low` にして送ります。下書きのサイドカーにモデルが記録されていれば、そのモデルで仕上げます（別のモデルにするなら `--model`）。
+`complexity` は `generate`・`edit`・`release` のすべてで既定が `low` で、`--complexity` を指定したときだけ変わります。
+
+`release` は、下書きのサイドカーにモデルが記録されていれば、そのモデルで仕上げます（別のモデルにするなら `--model`）。
 
 ## テスト
 
