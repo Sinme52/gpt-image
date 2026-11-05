@@ -39,9 +39,9 @@ QUALITIES = ("low", "medium", "high", "xhigh", "max", "auto")
 COMPLEXITIES = ("low", "medium", "high")
 DRAFT_QUALITY = "medium"
 RELEASE_QUALITY = "xhigh"
-# The API plans at complexity high when it is omitted, which can introduce
-# changes. A release should change nothing, so it plans as little as possible.
-RELEASE_COMPLEXITY = "low"
+# The API plans at complexity high when it is omitted, which can give poor
+# results, so every request sends this unless --complexity says otherwise.
+DEFAULT_COMPLEXITY = "low"
 FORMATS = ("png", "jpeg", "webp")
 MAX_EDIT_IMAGES = 16  # images/edits accepts up to 16 input images
 REQUEST_TIMEOUT = 600  # xhigh renders can take minutes
@@ -262,11 +262,10 @@ def cmd_generate(args):
         "size": args.size,
         "output_format": args.format,
         "n": args.n,
+        "complexity": args.complexity,
     }
     if args.background:
         body["background"] = args.background
-    if args.complexity:
-        body["complexity"] = args.complexity
     payload, request_id, elapsed = _post(
         f"{base_url()}/images/generations",
         json.dumps(body).encode("utf-8"),
@@ -327,11 +326,10 @@ def cmd_edit(args):
         ("size", size),
         ("output_format", args.format),
         ("n", str(args.n)),
+        ("complexity", args.complexity),
     ]
     if args.background:
         fields.append(("background", args.background))
-    if args.complexity:
-        fields.append(("complexity", args.complexity))
     body, ctype = _multipart(fields, files)
     payload, request_id, elapsed = _post(f"{base_url()}/images/edits", body, ctype, api_key)
     meta = {
@@ -385,11 +383,6 @@ def cmd_release(args):
         else:
             size = draft.get("size") or "auto"
 
-    complexity = args.complexity
-    # Older drafts keep their 2.5 model, which predates the complexity docs.
-    if not complexity and args.mode == "edit" and not model.startswith("gpt-image-2.5"):
-        complexity = RELEASE_COMPLEXITY
-
     if args.mode == "edit":
         fields = [
             ("model", model),
@@ -397,23 +390,20 @@ def cmd_release(args):
             ("quality", args.quality),
             ("size", size),
             ("output_format", fmt),
+            ("complexity", args.complexity),
         ]
         if background:
             fields.append(("background", background))
-        if complexity:
-            fields.append(("complexity", complexity))
         files = [("image[]", src.name, src.read_bytes(), mime_for(src))]
         body, ctype = _multipart(fields, files)
         url = f"{base_url()}/images/edits"
     else:
         payload_body = {
             "model": model, "prompt": prompt, "quality": args.quality,
-            "size": size, "output_format": fmt,
+            "size": size, "output_format": fmt, "complexity": args.complexity,
         }
         if background:
             payload_body["background"] = background
-        if complexity:
-            payload_body["complexity"] = complexity
         body, ctype = json.dumps(payload_body).encode("utf-8"), "application/json"
         url = f"{base_url()}/images/generations"
 
@@ -425,7 +415,7 @@ def cmd_release(args):
         "prompt": prompt,
         "model": model,
         "quality": args.quality,
-        "complexity": complexity,
+        "complexity": args.complexity,
         "size": size,
         "output_format": fmt,
         "background": background,
@@ -466,7 +456,7 @@ def build_parser():
     g = sub.add_parser("generate", help="create a draft image (default: medium)")
     g.add_argument("--prompt", required=True)
     g.add_argument("--quality", default=DRAFT_QUALITY, choices=QUALITIES)
-    g.add_argument("--complexity", choices=COMPLEXITIES, help="how much to plan before rendering (API default: high)")
+    g.add_argument("--complexity", default=DEFAULT_COMPLEXITY, choices=COMPLEXITIES, help="how much to plan before rendering")
     g.add_argument("--model", default=DEFAULT_MODEL)
     g.add_argument("--size", default="1024x1024",
                    help="1024x1024 | 1536x1024 | 1024x1536 | auto | WxH")
@@ -482,7 +472,7 @@ def build_parser():
                    help="input image (PNG/JPEG/WebP); repeat for several, in the order the prompt refers to them")
     e.add_argument("--prompt", required=True, help="what to draw; refer to the inputs as IMAGE 1, IMAGE 2, ...")
     e.add_argument("--quality", default=DRAFT_QUALITY, choices=QUALITIES)
-    e.add_argument("--complexity", choices=COMPLEXITIES, help="how much to plan before rendering (API default: high)")
+    e.add_argument("--complexity", default=DEFAULT_COMPLEXITY, choices=COMPLEXITIES, help="how much to plan before rendering")
     e.add_argument("--model", default=DEFAULT_MODEL)
     e.add_argument("--size", help="defaults to the first image's size if the API accepts it, else auto")
     e.add_argument("--format", default="png", choices=FORMATS)
@@ -502,8 +492,7 @@ def build_parser():
                    help="edit: refine the draft image itself (keeps composition); "
                         "regenerate: run the prompt again from scratch")
     r.add_argument("--quality", default=RELEASE_QUALITY, choices=QUALITIES)
-    r.add_argument("--complexity", choices=COMPLEXITIES,
-                   help=f"how much to plan before rendering (edit mode default: {RELEASE_COMPLEXITY})")
+    r.add_argument("--complexity", default=DEFAULT_COMPLEXITY, choices=COMPLEXITIES, help="how much to plan before rendering")
     r.add_argument("--model", help="defaults to the draft's model")
     r.add_argument("--size", help="defaults to the draft image's size")
     r.add_argument("--format", choices=FORMATS)

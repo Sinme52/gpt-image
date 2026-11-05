@@ -33,7 +33,7 @@ python3 $SKILL/scripts/gpt_image.py generate \
 - 透過背景が必要なら `--background transparent`（png / webp のみ）。
 - 複数案が欲しいと言われたら `--n 2` など。
 - モデルは既定で `gpt-image-2.6-sunburst`（細部の表現や編集の一貫性を重視）。「速く」「たくさん試したい」と言われたら `--model gpt-image-2.6-flare`。`--model` には API が受け付ける別のモデル ID も指定できる（例: `gpt-image-2.5-sunburst`）。
-- 文字が多い、レイアウトが複雑といった場合は既定のままでよい（API は `--complexity` 省略時に `high` で描く前の計画を立てる）。部分的な修正など、変えたくない要素が多いときは `--complexity low` や `medium` を試す。`complexity` は料金に影響しない。
+- `complexity`（描く前の計画の量）は generate・edit・release のすべてで既定が `low`。`high` だと良くない結果が出ることがあるため、ユーザーが明示的に指定したときだけ `--complexity medium` や `high` に変える。文字が多い、レイアウトが複雑といった理由で勝手に上げない。
 - 出力先は claude.ai では `/mnt/user-data/outputs`、それ以外ではカレントの `gpt-image-outputs/`。`--out-dir` で変更できる。
 - 画像と同じ名前の `.json`（サイドカー）にプロンプト・モデル・サイズなどが保存される。リリース時にこれを使うので、画像と一緒に保管するよう伝える。
 - 手元の画像を入力にしたい（キャラを保ったまま別の絵を作るなど）ときは、generate ではなく下の edit を使う。
@@ -71,7 +71,7 @@ python3 $SKILL/scripts/gpt_image.py edit \
 python3 $SKILL/scripts/gpt_image.py release --image <medium画像のパス>
 ```
 
-- 既定の `--mode edit` は、medium 画像そのものを edits API に入力し、構図・被写体・色・文字を保ったまま `xhigh` で描き直す。ユーザーが気に入った下書きを「そのまま綺麗にしたい」ケースに合っているので、基本はこれを使う。計画の量が多いと意図しない変更が入りやすいので、このモードは `complexity` を `low` にして送る。
+- 既定の `--mode edit` は、medium 画像そのものを edits API に入力し、構図・被写体・色・文字を保ったまま `xhigh` で描き直す。ユーザーが気に入った下書きを「そのまま綺麗にしたい」ケースに合っているので、基本はこれを使う。
 - モデルはサイドカーに記録された下書きのモデルを引き継ぐ（無ければ既定のモデル）。下書きと別のモデルで仕上げたいときは `--model` で指定する。
 - サイズは元画像から自動で引き継ぐ。プロンプトはサイドカー JSON から自動で読む（edit の結果なら、`--release-prompt` で残した説明文を優先する）。
 - **サイドカーが無い場合**（ユーザーがチャットに画像だけアップロードした場合など）は `--prompt` が必須。画像を自分で見て内容を詳しく記述したプロンプトを作って渡す。claude.ai でアップロードされたファイルは通常 `/mnt/user-data/uploads/` にある。
