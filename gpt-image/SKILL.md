@@ -1,6 +1,6 @@
 ---
 name: gpt-image
-description: OpenAI の GPT Image（既定は GPT Image 2.6 の gpt-image-2.6-sunburst / flare）を API で呼び出して画像を生成・編集・仕上げするスキル。「画像を作って」「イラストを生成して」「バナー／サムネ／アイキャッチを作って」「GPT Image で」「OpenAI で画像生成」など、画像の新規生成を頼まれたら必ずこのスキルを使うこと。「このキャラで」「この画像をもとに」「参照画像を使って」など、手元の画像（キャラ設定画、ポーズ参照、前のコマなど）を入力にした生成もこのスキルの edit で行う。通常は品質 medium で下書きを作り、「リリース用」「本番用」「最終版」「高品質で仕上げて」「xhigh で」と言われたら、受け取った medium 画像（または直前に作った画像）を xhigh 品質で再出力する。Use this skill for any image generation request, and for upgrading a draft image to release quality.
+description: OpenAI の GPT Image（既定は GPT Image 2.5 の gpt-image-2.5-sunburst / flare）を API で呼び出して画像を生成・編集・仕上げするスキル。「画像を作って」「イラストを生成して」「バナー／サムネ／アイキャッチを作って」「GPT Image で」「OpenAI で画像生成」など、画像の新規生成を頼まれたら必ずこのスキルを使うこと。「このキャラで」「この画像をもとに」「参照画像を使って」など、手元の画像（キャラ設定画、ポーズ参照、前のコマなど）を入力にした生成もこのスキルの edit で行う。通常は品質 medium で下書きを作り、「リリース用」「本番用」「最終版」「高品質で仕上げて」「xhigh で」と言われたら、受け取った medium 画像（または直前に作った画像）を xhigh 品質で再出力する。Use this skill for any image generation request, and for upgrading a draft image to release quality.
 ---
 
 # GPT Image 画像生成
@@ -32,8 +32,9 @@ python3 $SKILL/scripts/gpt_image.py generate \
 - サイズ: 正方形 `1024x1024`、横長 `1536x1024`、縦長 `1024x1536`。16:9 なら `1536x864` や `1920x1088` のようなカスタム値も可（幅・高さは 16 の倍数、比率は 1:3〜3:1、長辺 3840px 以下）。用途（バナー、スマホ壁紙、サムネなど）から適切なものを選ぶ。
 - 透過背景が必要なら `--background transparent`（png / webp のみ）。
 - 複数案が欲しいと言われたら `--n 2` など。
-- モデルは既定で `gpt-image-2.6-sunburst`（細部の表現や編集の一貫性を重視）。「速く」「たくさん試したい」と言われたら `--model gpt-image-2.6-flare`。`--model` には API が受け付ける別のモデル ID も指定できる（例: `gpt-image-2.5-sunburst`）。
-- `complexity`（描く前の計画の量）は generate・edit・release のすべてで既定が `low`。`high` だと良くない結果が出ることがあるため、ユーザーが明示的に指定したときだけ `--complexity medium` や `high` に変える。文字が多い、レイアウトが複雑といった理由で勝手に上げない。
+- モデルは既定で `gpt-image-2.5-sunburst`（高品質・編集精度重視）。「速く」「たくさん試したい」と言われたら `--model gpt-image-2.5-flare`。`--model` には API が受け付ける別のモデル ID も指定できる。
+- GPT Image 2.6 は、`complexity` が `low` でも画像に「もや」が出ることがあるため、既定にしていない。ユーザーが 2.6 を明示したときだけ `--model gpt-image-2.6-sunburst`（高速版は `gpt-image-2.6-flare`）を使う。
+- `complexity`（描く前の計画の量）は GPT Image 2.6 だけの設定。2.6 では generate・edit・release のすべてで既定が `low` で、`high` だと良くない結果が出ることがあるため、ユーザーが明示的に指定したときだけ `--complexity medium` や `high` に変える。文字が多い、レイアウトが複雑といった理由で勝手に上げない。既定の 2.5 は `complexity` を受け付けず、指定すると 400 エラーになるので `--complexity` を付けない。
 - 出力先は claude.ai では `/mnt/user-data/outputs`、それ以外ではカレントの `gpt-image-outputs/`。`--out-dir` で変更できる。
 - 画像と同じ名前の `.json`（サイドカー）にプロンプト・モデル・サイズなどが保存される。リリース時にこれを使うので、画像と一緒に保管するよう伝える。
 - 手元の画像を入力にしたい（キャラを保ったまま別の絵を作るなど）ときは、generate ではなく下の edit を使う。
@@ -72,7 +73,7 @@ python3 $SKILL/scripts/gpt_image.py release --image <medium画像のパス>
 ```
 
 - 既定の `--mode edit` は、medium 画像そのものを edits API に入力し、構図・被写体・色・文字を保ったまま `xhigh` で描き直す。ユーザーが気に入った下書きを「そのまま綺麗にしたい」ケースに合っているので、基本はこれを使う。
-- モデルはサイドカーに記録された下書きのモデルを引き継ぐ（無ければ既定のモデル）。下書きと別のモデルで仕上げたいときは `--model` で指定する。
+- モデルはサイドカーに記録された下書きのモデルを引き継ぐ（無ければ既定のモデル）。下書きと別のモデルで仕上げたいときは `--model` で指定する。2.6 で作った下書きは 2.6 のまま仕上がるので、もやが気になるときは `--model gpt-image-2.5-sunburst` を指定する。
 - サイズは元画像から自動で引き継ぐ。プロンプトはサイドカー JSON から自動で読む（edit の結果なら、`--release-prompt` で残した説明文を優先する）。
 - **サイドカーが無い場合**（ユーザーがチャットに画像だけアップロードした場合など）は `--prompt` が必須。画像を自分で見て内容を詳しく記述したプロンプトを作って渡す。claude.ai でアップロードされたファイルは通常 `/mnt/user-data/uploads/` にある。
 - 「同じプロンプトで作り直して」と言われたときだけ `--mode regenerate`（元画像を使わずプロンプトから xhigh で再生成。構図は変わる）。
@@ -91,6 +92,6 @@ xhigh は 1 枚あたり数十秒〜数分かかることがある。実行前�
 - `API key not found` → 環境変数または `.env` の設定方法を案内する。
 - `Could not reach` → ネットワーク通信の許可（`api.openai.com`）を案内する。
 - `OpenAI API error 400` → メッセージを読み、サイズ指定やパラメータを直して再実行する。コンテンツポリシーで拒否された場合はその旨を伝え、プロンプトの調整案を出す。
-- モデルが存在しない、または使えないというエラー → 黙って別のモデルに切り替えず、ユーザーに伝える。了承が得られたら `--model` で利用できるモデル（例: `gpt-image-2.5-sunburst`）を指定して再実行する。
+- モデルが存在しない、または使えないというエラー → 黙って別のモデルに切り替えず、ユーザーに伝える。了承が得られたら `--model` で利用できるモデルを指定して再実行する。
 - `OpenAI API error 401/403` → キーが無効か、組織の認証（Organization verification）が必要な可能性を伝える。
 - `OpenAI API error 429` → レート制限か残高不足。少し待つか、OpenAI の課金設定を確認するよう伝える。

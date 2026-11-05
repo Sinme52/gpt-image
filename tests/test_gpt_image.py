@@ -161,19 +161,29 @@ class GptImageCli(unittest.TestCase):
         self.assertEqual(Mock.requests[0]["path"], "/v1/images/generations")
         self.assertEqual(Mock.requests[0]["json"]["quality"], "medium")
 
-    def test_generate_and_edit_default_to_low_complexity(self):
+    def test_default_model_sends_no_complexity(self):
         code, _, err = self.run_cli("generate", "--prompt", "a cat", "--out-dir", str(self.dir), "--name", "cat")
         self.assertEqual(code, 0, err)
-        self.assertEqual(Mock.requests[0]["json"]["model"], "gpt-image-2.6-sunburst")
-        self.assertEqual(Mock.requests[0]["json"]["complexity"], "low")
-        self.assertEqual(json.loads((self.dir / "cat.json").read_text())["complexity"], "low")
+        self.assertEqual(Mock.requests[0]["json"]["model"], "gpt-image-2.5-sunburst")
+        self.assertNotIn("complexity", Mock.requests[0]["json"])
+        self.assertIsNone(json.loads((self.dir / "cat.json").read_text())["complexity"])
         a = self.dir / "c.png"
         a.write_bytes(png_bytes(1024, 1024))
         code, _, err = self.run_cli("edit", "--image", str(a), "--prompt", "x", "--out-dir", str(self.dir), "--name", "e")
         self.assertEqual(code, 0, err)
-        self.assertEqual(Mock.requests[1]["fields"]["model"], "gpt-image-2.6-sunburst")
+        self.assertEqual(Mock.requests[1]["fields"]["model"], "gpt-image-2.5-sunburst")
+        self.assertNotIn("complexity", Mock.requests[1]["fields"])
+
+    def test_2_6_defaults_to_low_complexity(self):
+        code, _, err = self.run_cli("generate", "--prompt", "a cat", "--model", "gpt-image-2.6-sunburst", "--out-dir", str(self.dir), "--name", "cat")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["json"]["complexity"], "low")
+        self.assertEqual(json.loads((self.dir / "cat.json").read_text())["complexity"], "low")
+        a = self.dir / "c.png"
+        a.write_bytes(png_bytes(1024, 1024))
+        code, _, err = self.run_cli("edit", "--image", str(a), "--prompt", "x", "--model", "gpt-image-2.6-flare", "--out-dir", str(self.dir), "--name", "e")
+        self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[1]["fields"]["complexity"], "low")
-        self.assertEqual(json.loads((self.dir / "e.json").read_text())["complexity"], "low")
 
     def test_edit_complexity_can_be_overridden(self):
         a = self.dir / "c.png"
@@ -199,39 +209,46 @@ class GptImageCli(unittest.TestCase):
         (self.dir / "draft-x.json").write_text(json.dumps(side))
         return draft
 
-    def test_release_plans_low_complexity_on_the_default_model(self):
+    def test_release_on_the_default_model_sends_no_complexity(self):
         code, _, err = self.run_cli("release", "--image", str(self.make_draft()))
         self.assertEqual(code, 0, err)
         fields = Mock.requests[0]["fields"]
-        self.assertEqual(fields["model"], "gpt-image-2.6-sunburst")
-        self.assertEqual(fields["complexity"], "low")
-        self.assertEqual(json.loads((self.dir / "release-x.json").read_text())["complexity"], "low")
+        self.assertEqual(fields["model"], "gpt-image-2.5-sunburst")
+        self.assertNotIn("complexity", fields)
+        self.assertIsNone(json.loads((self.dir / "release-x.json").read_text())["complexity"])
 
     def test_release_complexity_can_be_overridden(self):
         code, _, err = self.run_cli("release", "--image", str(self.make_draft()), "--complexity", "high")
         self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[0]["fields"]["complexity"], "high")
 
-    def test_release_of_an_old_draft_keeps_its_model_with_low_complexity(self):
-        code, _, err = self.run_cli("release", "--image", str(self.make_draft("gpt-image-2.5-sunburst")))
+    def test_release_keeps_the_drafts_model_with_low_complexity(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft("gpt-image-2.6-sunburst")))
         self.assertEqual(code, 0, err)
         fields = Mock.requests[0]["fields"]
-        self.assertEqual(fields["model"], "gpt-image-2.5-sunburst")
+        self.assertEqual(fields["model"], "gpt-image-2.6-sunburst")
         self.assertEqual(fields["complexity"], "low")
+
+    def test_release_model_can_be_overridden(self):
+        code, _, err = self.run_cli("release", "--image", str(self.make_draft("gpt-image-2.6-sunburst")), "--model", "gpt-image-2.5-sunburst")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Mock.requests[0]["fields"]["model"], "gpt-image-2.5-sunburst")
+        self.assertNotIn("complexity", Mock.requests[0]["fields"])
 
     def test_release_does_not_inherit_the_drafts_complexity(self):
         draft = self.make_draft()
-        (self.dir / "draft-x.json").write_text(json.dumps({"prompt": "a cat", "complexity": "high"}))
+        (self.dir / "draft-x.json").write_text(json.dumps({"prompt": "a cat", "model": "gpt-image-2.6-sunburst", "complexity": "high"}))
         code, _, err = self.run_cli("release", "--image", str(draft))
         self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[0]["fields"]["complexity"], "low")
 
-    def test_release_regenerate_defaults_to_low_complexity(self):
-        code, _, err = self.run_cli("release", "--image", str(self.make_draft()), "--mode", "regenerate")
+    def test_release_regenerate_defaults_to_low_complexity_on_2_6(self):
+        draft = str(self.make_draft("gpt-image-2.6-sunburst"))
+        code, _, err = self.run_cli("release", "--image", draft, "--mode", "regenerate")
         self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[0]["path"], "/v1/images/generations")
         self.assertEqual(Mock.requests[0]["json"]["complexity"], "low")
-        code, _, err = self.run_cli("release", "--image", str(self.make_draft()), "--mode", "regenerate", "--complexity", "medium")
+        code, _, err = self.run_cli("release", "--image", draft, "--mode", "regenerate", "--complexity", "medium")
         self.assertEqual(code, 0, err)
         self.assertEqual(Mock.requests[1]["json"]["complexity"], "medium")
 
