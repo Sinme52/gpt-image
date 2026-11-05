@@ -1,6 +1,6 @@
 # gpt-image
 
-Claude から OpenAI の GPT Image を呼び出して画像を作る Claude スキルです。既定のモデルは GPT Image 2.6 (`gpt-image-2.6-sunburst`) で、`--model` で高速版の `gpt-image-2.6-flare` や他のモデルも指定できます。
+Claude から OpenAI の GPT Image を呼び出して画像を作る Claude スキルです。既定のモデルは GPT Image 2.5 (`gpt-image-2.5-sunburst`) で、`--model` で高速版の `gpt-image-2.5-flare` や他のモデルも指定できます。GPT Image 2.6 は `complexity` が `low` でも画像に「もや」が出ることがあるため、今は既定にしていません。使う場合は `--model gpt-image-2.6-sunburst` を指定してください。
 
 - 通常は品質 `medium` で下書きを作成
 - キャラ設定画やポーズ参照など、手元の画像を入力にした生成（`edit`、最大16枚）
@@ -72,11 +72,11 @@ python3 gpt-image/scripts/gpt_image.py edit --image character.png --image pose.p
 python3 gpt-image/scripts/gpt_image.py release --image gpt-image-outputs/draft-xxxx.png
 ```
 
-主なオプション: `--model gpt-image-2.6-flare`（高速版）、`--complexity low|medium|high`（描く前の計画の量。既定は `low`）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
+主なオプション: `--model gpt-image-2.5-flare`（高速版）、`--complexity low|medium|high`（描く前の計画の量。GPT Image 2.6 のみ）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
 
-`complexity` は `generate`・`edit`・`release` のすべてで既定が `low` で、`--complexity` を指定したときだけ変わります。
+`complexity` は GPT Image 2.6 だけの設定で、2.6 では `generate`・`edit`・`release` のすべてで既定が `low` になり、`--complexity` を指定したときだけ変わります。既定の 2.5 には送りません（API が 400 エラーを返すため）。
 
-`release` は、下書きのサイドカーにモデルが記録されていれば、そのモデルで仕上げます（別のモデルにするなら `--model`）。
+`release` は、下書きのサイドカーにモデルが記録されていれば、そのモデルで仕上げます（別のモデルにするなら `--model`）。2.6 で作った下書きは 2.6 のまま仕上がります。
 
 ## テスト
 
