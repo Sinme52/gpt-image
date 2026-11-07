@@ -1,100 +1,111 @@
 # gpt-image
 
-Claude から OpenAI の GPT Image を呼び出して画像を作る Claude スキルです。既定のモデルは GPT Image 2.5 (`gpt-image-2.5-sunburst`) で、`--model` で高速版の `gpt-image-2.5-flare` や他のモデルも指定できます。GPT Image 2.6 は `complexity` が `low` でも画像に「もや」が出ることがあるため、今は既定にしていません。使う場合は `--model gpt-image-2.6-sunburst` を指定してください。
+English | [日本語](README.ja.md)
 
-- 通常は品質 `medium` で下書きを作成
-- キャラ設定画やポーズ参照など、手元の画像を入力にした生成（`edit`、最大16枚）
-- 「リリース用に」と頼むと、medium の画像を入力にして構図を保ったまま `xhigh` で再出力
-- Python 標準ライブラリのみで動作（追加インストール不要）
+A Claude skill that lets Claude create images with OpenAI's GPT Image. The default model is GPT Image 2.5 (`gpt-image-2.5-sunburst`). Use `--model` to pick the faster `gpt-image-2.5-flare` or another model. GPT Image 2.6 is not the default for now, because it can add a haze to images even with `complexity` set to `low`. To use it, pass `--model gpt-image-2.6-sunburst`.
 
-## 構成
+- Makes drafts at `medium` quality by default
+- Generates from your own images, such as a character sheet or a pose reference (`edit`, up to 16 images)
+- Ask for a "release" version, and it redraws a `medium` image at `xhigh` quality while keeping the composition
+- Runs on the Python standard library only (nothing extra to install)
+
+Want a character in a specific pose? Use it together with [Pose Doll](https://github.com/Sinme52/pose-doll), which uses this skill's `edit`.
+
+## Contents
 
 ```
 gpt-image/
-├── SKILL.md            # Claude 向けの手順
+├── SKILL.md              # instructions for Claude
 ├── scripts/gpt_image.py  # generate / edit / release
 └── .env.example
 ```
 
-## インストール
+## Install
 
-### claude.ai（Claude Code のクラウドセッションにも自動で読み込まれます）
+First, get the files:
 
-1. `gpt-image` フォルダを zip にする
+```bash
+git clone https://github.com/Sinme52/gpt-image.git
+cd gpt-image
+```
+
+### claude.ai (also loaded automatically in Claude Code cloud sessions)
+
+1. Zip the `gpt-image` folder:
 
    ```bash
    zip -r gpt-image.zip gpt-image -x '*/.env' '*/__pycache__/*' '*.DS_Store'
    ```
 
-2. claude.ai の 設定 > 機能 > スキル から zip をアップロード
+2. Upload the zip in claude.ai under Settings > Capabilities > Skills.
 
-### Claude Code（ローカル）
+### Claude Code (local)
 
 ```bash
 cp -r gpt-image ~/.claude/skills/
 ```
 
-## API キーの設定
+## API key
 
-キーは次の順に探します。
+The skill looks for the key in this order:
 
-1. 環境変数 `OPENAI_IMAGE_API_KEY`
-2. スキルフォルダ直下の `.env`
-3. スクリプトを実行したディレクトリの `.env`
+1. The environment variable `OPENAI_IMAGE_API_KEY`
+2. A `.env` file in the skill folder
+3. A `.env` file in the directory you ran the script from
 
-`.env` の書式は `.env.example` を参照してください。`.env` は `.gitignore` で除外しています。
+See `.env.example` for the format. `.env` is excluded by `.gitignore`.
 
-### Claude Code のクラウド環境で使う場合
+### Claude Code cloud environments
 
-クラウド環境の設定で次の 2 つを行います。
+In the cloud environment settings:
 
 - **Environment variables**: `OPENAI_IMAGE_API_KEY=sk-...`
-- **Network access**: Custom にして Allowed domains に `api.openai.com` を追加（既定の Trusted リストには含まれていません）
+- **Network access**: choose Custom and add `api.openai.com` to Allowed domains (it is not in the default Trusted list)
 
-## 使い方
+## Usage
 
-Claude に頼むだけで使えます。
+Just ask Claude.
 
-- 「雨の夜の喫茶店のイラストを作って」→ medium で下書き
-- 「これをリリース用にして」→ xhigh で仕上げ
+- "Make an illustration of a café on a rainy night" → a draft at `medium`
+- "Make this a release version" → finished at `xhigh`
 
-スクリプトを直接実行することもできます。
+You can also run the script directly.
 
 ```bash
-# 下書き (medium)
+# Draft (medium)
 python3 gpt-image/scripts/gpt_image.py generate --prompt "..." --size 1536x1024
 
-# 参照画像を使って作る (medium)。入力画像はプロンプトの中で IMAGE 1, IMAGE 2 ... と呼ぶ
+# Generate from reference images (medium). Refer to the input images in the prompt as IMAGE 1, IMAGE 2, ...
 python3 gpt-image/scripts/gpt_image.py edit --image character.png --image pose.png \
   --prompt "Draw the character from IMAGE 1 in the pose of IMAGE 2 ..." --n 2 --release-prompt "a knight walking to the left"
 
-# リリース (xhigh)。プロンプトとサイズは下書きのサイドカー JSON から引き継ぐ（edit の結果なら --release-prompt の文）
+# Release (xhigh). The prompt and size come from the draft's sidecar JSON (for an edit result, the --release-prompt text)
 python3 gpt-image/scripts/gpt_image.py release --image gpt-image-outputs/draft-xxxx.png
 ```
 
-主なオプション: `--model gpt-image-2.5-flare`（高速版）、`--complexity low|medium|high`（描く前の計画の量。GPT Image 2.6 のみ）、`--background transparent`、`--n 2`、`release --mode regenerate`（元画像を使わずプロンプトから再生成）、`release --quality max`。
+Main options: `--model gpt-image-2.5-flare` (faster), `--complexity low|medium|high` (how much planning the model does before drawing; GPT Image 2.6 only), `--background transparent`, `--n 2`, `release --mode regenerate` (redraw from the prompt without the source image), `release --quality max`.
 
-`complexity` は GPT Image 2.6 だけの設定で、2.6 では `generate`・`edit`・`release` のすべてで既定が `low` になり、`--complexity` を指定したときだけ変わります。既定の 2.5 には送りません（API が 400 エラーを返すため）。
+`complexity` applies only to GPT Image 2.6. With 2.6 it defaults to `low` for `generate`, `edit` and `release`, and changes only when you pass `--complexity`. It is never sent to the default 2.5 (the API returns a 400 error).
 
-`release` は、下書きのサイドカーにモデルが記録されていれば、そのモデルで仕上げます（別のモデルにするなら `--model`）。2.6 で作った下書きは 2.6 のまま仕上がります。
+If the draft's sidecar records a model, `release` finishes with that model (pass `--model` to use another). A draft made with 2.6 is finished with 2.6.
 
-## テスト
+## Tests
 
-API を模した手元のサーバーに対して、CLI の送信内容と保存結果を確認します（ネットワーク・課金なし）。
+The tests run the CLI against a local server that imitates the API, and check what it sends and saves (no network, no charges).
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-## 旧スキルからの移行
+## Moving from the old skill
 
-`gpt-image-2-5` からスキル名が変わりました。新しい `gpt-image` をアップロードしたら、古い `gpt-image-2-5` は削除してください（両方あると、どちらが使われるか定まりません）。
+The skill was renamed from `gpt-image-2-5`. After you install the new `gpt-image`, delete the old `gpt-image-2-5` (if both are installed, which one runs is not defined).
 
-## 注意
+## Notes
 
-- API の利用料金は OpenAI アカウントに課金されます。`xhigh` は `medium` より大幅に時間とコストがかかります。
-- このスキル専用のキーを作り、権限を画像生成に絞って予算上限を設定しておくことをおすすめします。
+- API usage is billed to your OpenAI account. `xhigh` takes much more time and costs much more than `medium`.
+- We recommend creating a key just for this skill, limiting it to image generation, and setting a budget limit.
 
-## ライセンス
+## License
 
 [MIT License](LICENSE)
