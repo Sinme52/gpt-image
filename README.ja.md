@@ -22,7 +22,7 @@ gpt-image/
 
 ### claude.ai（Claude Code のクラウドセッションにも自動で読み込まれます）
 
-1. `gpt-image` フォルダを zip にする
+1. このリポジトリの [`gpt-image.zip`](https://github.com/Sinme52/gpt-image/raw/main/gpt-image.zip) をダウンロードする。または `gpt-image` フォルダから自分で zip を作る
 
    ```bash
    zip -r gpt-image.zip gpt-image -x '*/.env' '*/__pycache__/*' '*.DS_Store'
