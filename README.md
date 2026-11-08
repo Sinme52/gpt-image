@@ -97,6 +97,14 @@ The tests run the CLI against a local server that imitates the API, and check wh
 python3 -m unittest discover -s tests
 ```
 
+`gpt-image.zip` must match the `gpt-image/` folder. After changing anything in `gpt-image/`, rebuild and check the zip, then commit it:
+
+```bash
+python3 tools/check_zip.py --build
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the tests and `python3 tools/check_zip.py` on every push to `main` and every pull request. The zip check fails when the zip is outdated, is missing a file, or contains a `.env` or a key-like string.
+
 ## Moving from the old skill
 
 The skill was renamed from `gpt-image-2-5`. After you install the new `gpt-image`, delete the old `gpt-image-2-5` (if both are installed, which one runs is not defined).

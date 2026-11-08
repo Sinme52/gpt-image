@@ -88,6 +88,14 @@ API を模した手元のサーバーに対して、CLI の送信内容と保存
 python3 -m unittest discover -s tests
 ```
 
+`gpt-image.zip` は `gpt-image/` フォルダと一致している必要があります。`gpt-image/` 内を変更したら、zip を作り直して確認し、コミットしてください。
+
+```bash
+python3 tools/check_zip.py --build
+```
+
+GitHub Actions（`.github/workflows/ci.yml`）が、`main` への push とプルリクエストのたびにテストと `python3 tools/check_zip.py` を実行します。zip が古い、ファイルが欠けている、`.env` やキーらしい文字列が入っている場合は失敗します。
+
 ## 旧スキルからの移行
 
 `gpt-image-2-5` からスキル名が変わりました。新しい `gpt-image` をアップロードしたら、古い `gpt-image-2-5` は削除してください（両方あると、どちらが使われるか定まりません）。
