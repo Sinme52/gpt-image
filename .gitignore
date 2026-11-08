@@ -9,8 +9,9 @@
 # Generated images and sidecar JSON
 gpt-image-outputs/
 
-# Build artifact (attach to a GitHub Release instead)
+# Build artifacts; only the skill zip for claude.ai is committed
 *.zip
+!/gpt-image.zip
 *.skill
 
 # Python / OS

@@ -31,7 +31,7 @@ cd gpt-image
 
 ### claude.ai (also loaded automatically in Claude Code cloud sessions)
 
-1. Zip the `gpt-image` folder:
+1. Download [`gpt-image.zip`](https://github.com/Sinme52/gpt-image/raw/main/gpt-image.zip) from this repository, or build it yourself from the `gpt-image` folder:
 
    ```bash
    zip -r gpt-image.zip gpt-image -x '*/.env' '*/__pycache__/*' '*.DS_Store'
